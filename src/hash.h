@@ -22,6 +22,8 @@
 #include "crypto/sph_keccak.h"
 #include "crypto/sph_skein.h"
 #include "crypto/sha512.h"
+#include "crypto/sph_cubehash.h"
+#include "crypto/sph_shavite.h"
 
 #include <iomanip>
 #include <openssl/sha.h>
@@ -348,41 +350,49 @@ template <typename T1>
 inline uint256 HashNist5(const T1 pbegin, const T1 pend)
 
 {
-    sph_blake512_context ctx_blake;
-    sph_groestl512_context ctx_groestl;
-    sph_jh512_context ctx_jh;
-    sph_keccak512_context ctx_keccak;
-    sph_skein512_context ctx_skein;
+    sph_blake512_context     ctx_blake;
+    sph_jh512_context        ctx_jh;    
+    sph_groestl512_context   ctx_groestl;
+    sph_skein512_context     ctx_skein;
+    sph_keccak512_context    ctx_keccak;
+ 	sph_cubehash512_context  ctx_cubehash;
+	sph_shavite512_context   ctx_shavite;   
+
     static unsigned char pblank[1];
+    uint512 hash;
 
-    uint512 hash[5];
-
+    // Blake512
     sph_blake512_init(&ctx_blake);
-    // ZBLAKE;
-    sph_blake512(&ctx_blake, (pbegin == pend ? pblank : static_cast<const void*>(&pbegin[0])), (pend - pbegin) * sizeof(pbegin[0]));
-    sph_blake512_close(&ctx_blake, static_cast<void*>(&hash[0]));
-
-    sph_groestl512_init(&ctx_groestl);
-    // ZGROESTL;
-    sph_groestl512(&ctx_groestl, static_cast<const void*>(&hash[0]), 64);
-    sph_groestl512_close(&ctx_groestl, static_cast<void*>(&hash[1]));
-
+    sph_blake512(&ctx_blake, (pbegin == pend ? pblank : (unsigned char*)&pbegin[0]), (pend - pbegin) * sizeof(pbegin[0]));
+    sph_blake512_close(&ctx_blake, (unsigned char*)&hash);
+    // Jh512
     sph_jh512_init(&ctx_jh);
-    // ZJH;
-    sph_jh512(&ctx_jh, static_cast<const void*>(&hash[1]), 64);
-    sph_jh512_close(&ctx_jh, static_cast<void*>(&hash[2]));
-
-    sph_keccak512_init(&ctx_keccak);
-    // ZKECCAK;
-    sph_keccak512(&ctx_keccak, static_cast<const void*>(&hash[2]), 64);
-    sph_keccak512_close(&ctx_keccak, static_cast<void*>(&hash[3]));
-
+    sph_jh512(&ctx_jh, (unsigned char*)&hash, sizeof(hash));
+    sph_jh512_close(&ctx_jh, (unsigned char*)&hash);    
+    // Groestl512
+    sph_groestl512_init(&ctx_groestl);
+    sph_groestl512(&ctx_groestl, (unsigned char*)&hash, sizeof(hash));
+    sph_groestl512_close(&ctx_groestl, (unsigned char*)&hash);
+    // Skein512
     sph_skein512_init(&ctx_skein);
-    // SKEIN;
-    sph_skein512(&ctx_skein, static_cast<const void*>(&hash[3]), 64);
-    sph_skein512_close(&ctx_skein, static_cast<void*>(&hash[4]));
+    sph_skein512(&ctx_skein, (unsigned char*)&hash, sizeof(hash));
+    sph_skein512_close(&ctx_skein, (unsigned char*)&hash);    
+    // Keccak512
+    sph_keccak512_init(&ctx_keccak);
+    sph_keccak512(&ctx_keccak, (unsigned char*)&hash, sizeof(hash));
+    sph_keccak512_close(&ctx_keccak, (unsigned char*)&hash);
+    // cubehash512
+    sph_cubehash512_init(&ctx_cubehash);
+    sph_cubehash512(&ctx_cubehash, (unsigned char*)&hash, sizeof(hash));
+    sph_cubehash512_close(&ctx_cubehash, (unsigned char*)&hash);    
+    // shavite512
+    sph_shavite512_init(&ctx_shavite);
+    sph_shavite512(&ctx_shavite, (unsigned char*)&hash, sizeof(hash));
+    sph_shavite512_close(&ctx_shavite, (unsigned char*)&hash);    
 
-    return hash[4].trim256();
+    //printf("\nhash: %s\n", hash.ToString().c_str());
+
+    return hash.trim256();
 }
 
 inline void scrypt_hash(const char* pass, unsigned int pLen, const char* salt, unsigned int sLen, char* output, unsigned int N, unsigned int r, unsigned int p, unsigned int dkLen)
